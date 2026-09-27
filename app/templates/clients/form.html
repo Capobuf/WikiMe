@@ -1,0 +1,13 @@
+{% extends "base.html" %}{% block title %}{{ 'Modifica cliente' if client else 'Nuovo cliente' }}{% endblock %}
+{% block content %}{% set title = 'Modifica cliente' if client else 'Nuovo cliente' %}{% include 'partials/page_header.html' %}
+<form method="post" class="card"><div class="card-body"><div class="row g-3">
+  <div class="col-md-6"><label class="form-label required">Ragione sociale</label><input class="form-control" name="company_name" required value="{{ client.company_name if client else '' }}"></div>
+  <div class="col-md-6"><label class="form-label">Nome visualizzato</label><input class="form-control" name="display_name" value="{{ client.display_name or '' if client else '' }}"></div>
+  <div class="col-md-8"><label class="form-label">Indirizzo</label><input class="form-control" name="address" value="{{ client.address or '' if client else '' }}"></div>
+  <div class="col-md-4"><label class="form-label">Città</label><input class="form-control" name="city" value="{{ client.city or '' if client else '' }}"></div>
+  <div class="col-md-4"><label class="form-label">Email</label><input class="form-control" type="email" name="email" value="{{ client.email or '' if client else '' }}"></div>
+  <div class="col-md-4"><label class="form-label">Telefono</label><input class="form-control" name="phone" value="{{ client.phone or '' if client else '' }}"></div>
+  <div class="col-md-4"><label class="form-label">Sito web</label><input class="form-control" name="website" value="{{ client.website or '' if client else '' }}"></div>
+  <div class="col-12"><label class="form-label">Note</label><textarea class="form-control" name="notes" rows="4">{{ client.notes or '' if client else '' }}</textarea></div>
+</div></div><div class="card-footer text-end"><a class="btn" href="{{ url_for('clients.index') }}">Annulla</a><button class="btn btn-primary ms-2">Salva</button></div></form>{% endblock %}
+

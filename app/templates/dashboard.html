@@ -1,0 +1,6 @@
+{% extends "base.html" %}{% block title %}Panoramica{% endblock %}{% block content %}
+{% with title='Panoramica', subtitle=current_client.company_name %}{% include 'partials/page_header.html' %}{% endwith %}
+<div class="row row-cards"><div class="col-sm-6 col-lg-3"><div class="card card-sm"><div class="card-body"><div class="text-secondary">Cliente</div><div class="h2 mb-0">{{ current_client.name }}</div></div></div></div><div class="col-sm-6 col-lg-3"><div class="card card-sm"><div class="card-body"><div class="text-secondary">Sedi</div><div class="h2 mb-0">{{ site_count }}</div></div></div></div><div class="col-sm-6 col-lg-3"><div class="card card-sm"><div class="card-body"><div class="text-secondary">Fonti</div><div class="h2 mb-0">{{ source_count }}</div></div></div></div><div class="col-sm-6 col-lg-3"><div class="card card-sm"><div class="card-body"><div class="text-secondary">Integrazioni configurate</div><div class="h2 mb-0">{{ integration_count }}</div></div></div></div></div>
+<div class="card mt-4"><div class="card-body"><h3 class="card-title">Stato documentazione</h3><div class="progress progress-sm"><div class="progress-bar bg-azure" style="width: 10%"></div></div><div class="text-secondary mt-2">Struttura iniziale predisposta. I contenuti manuali saranno implementati in una fase successiva.</div></div></div>
+{% endblock %}
+

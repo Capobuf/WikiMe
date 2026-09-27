@@ -1,0 +1,2 @@
+{% extends "base.html" %}{% block title %}Errore {{ code }}{% endblock %}{% block content %}<div class="empty py-6"><div class="empty-header">{{ code }}</div><p class="empty-title">{{ message }}</p><p class="empty-subtitle text-secondary">Torna alla pagina precedente oppure alla gestione clienti.</p><div class="empty-action"><a class="btn btn-primary" href="{{ url_for('clients.index') }}">Vai ai clienti</a></div></div>{% endblock %}
+
