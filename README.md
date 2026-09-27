@@ -1,6 +1,6 @@
-# WikiMi POC
+# WikiMe POC
 
-Prototipo locale esplorativo per validare la UX, l'organizzazione per cliente, il modello documentale e i futuri flussi di importazione di WikiMi. Privilegia codice semplice e rendering server-side; non anticipa l'architettura definitiva.
+Prototipo locale esplorativo per validare la UX, l'organizzazione per cliente, il modello documentale e i futuri flussi di importazione di WikiMe. Privilegia codice semplice e rendering server-side; non anticipa l'architettura definitiva.
 
 ## Stack
 
@@ -19,6 +19,8 @@ python run.py
 
 Aprire `http://127.0.0.1:5000`. Il database e le impostazioni globali vengono inizializzati automaticamente all'avvio. `python run.py seed` aggiunge due clienti, tre sedi e tre fonti demo; se sono già presenti clienti non modifica il database.
 
+Dopo l'installazione, su Windows è anche possibile avviare l'applicazione con un doppio clic su `run.bat`.
+
 Variabili disponibili: `FLASK_ENV`, `SECRET_KEY` (usata soltanto per firmare la sessione che conserva il cliente corrente) e `DATABASE_PATH`.
 
 ## Pagine
@@ -28,7 +30,8 @@ Variabili disponibili: `FLASK_ENV`, `SECRET_KEY` (usata soltanto per firmare la 
 - `/sites`: CRUD sedi
 - `/sources`: CRUD fonti
 - `/settings/integrations`: configurazioni globali MikroTik, UniFi e Snipe-IT
-- `/imports`: flusso e anteprima con dati demo isolati
+- `/imports`: upload multiplo/copia-incolla, analisi e anteprima di export RouterOS e SwitchOS
+- `/devices`: inventario dei dispositivi generato dalle configurazioni importate
 - `/documentation`: struttura delle sezioni documentali
 - `/document`: preview HTML del documento cliente
 
@@ -44,5 +47,4 @@ pytest
 
 ## Limiti e sicurezza
 
-Non esiste autenticazione. Il POC non deve essere esposto su Internet e non è adatto a dati reali sensibili. Non sono implementate connessioni, parser o sincronizzazioni reali. SQLite e il modello dati sono deliberatamente provvisori e il database può essere eliminato e ricreato durante l'esplorazione.
-
+Non esiste autenticazione. Il POC non deve essere esposto su Internet. I parser di configurazione usano whitelist di campi: il file originale e i valori di password, secret, community e chiavi non vengono conservati. Gli export `.rsc` e `.swb` sono esclusi da Git, ma i dati strutturati importati restano nel database SQLite locale. Il modello dati è ancora provvisorio e il database può essere eliminato e ricreato durante l'esplorazione.

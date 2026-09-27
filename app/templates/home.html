@@ -1,5 +1,4 @@
 {% extends "base.html" %}
 {% block content %}
-<div class="empty py-6"><div class="empty-icon"><span class="avatar avatar-xl bg-azure-lt">W</span></div><p class="empty-title">WikiMi POC</p><p class="empty-subtitle text-secondary">Prototipo locale per validare documentazione, fonti e flussi di importazione.</p><div class="empty-action"><a class="btn btn-primary" href="{{ url_for('main.dashboard') if current_client else url_for('clients.index') }}">{{ 'Apri panoramica' if current_client else 'Gestisci clienti' }}</a></div></div>
+<div class="empty py-6"><div class="empty-icon"><span class="avatar avatar-xl bg-azure-lt">W</span></div><p class="empty-title">WikiMe POC</p><p class="empty-subtitle text-secondary">Prototipo locale per validare documentazione, fonti e flussi di importazione.</p><div class="empty-action"><a class="btn btn-primary" href="{{ url_for('main.dashboard') if current_client else url_for('clients.index') }}">{{ 'Apri panoramica' if current_client else 'Gestisci clienti' }}</a></div></div>
 {% endblock %}
-

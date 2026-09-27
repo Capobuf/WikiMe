@@ -4,6 +4,7 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 from flask import Flask, flash, redirect, render_template, request, session, url_for
+from sqlalchemy import inspect, text
 
 from .defaults import INTEGRATIONS, default_integration_configuration
 from .extensions import db
@@ -14,7 +15,7 @@ def create_app(test_config=None):
     load_dotenv()
     app = Flask(__name__, instance_relative_config=True)
     project_root = Path(app.root_path).parent
-    database_path = os.getenv("DATABASE_PATH", "instance/wikimi.db")
+    database_path = os.getenv("DATABASE_PATH", "instance/wikime.db")
     if not Path(database_path).is_absolute():
         database_path = project_root / database_path
 
@@ -31,12 +32,14 @@ def create_app(test_config=None):
     db.init_app(app)
 
     from .routes.clients import bp as clients_bp
+    from .routes.devices import bp as devices_bp
+    from .routes.imports import bp as imports_bp
     from .routes.main import bp as main_bp
     from .routes.settings import bp as settings_bp
     from .routes.sites import bp as sites_bp
     from .routes.sources import bp as sources_bp
 
-    for blueprint in (main_bp, clients_bp, sites_bp, sources_bp, settings_bp):
+    for blueprint in (main_bp, clients_bp, sites_bp, sources_bp, devices_bp, imports_bp, settings_bp):
         app.register_blueprint(blueprint)
 
     @app.context_processor
@@ -52,8 +55,10 @@ def create_app(test_config=None):
 
     @app.before_request
     def require_current_client():
-        protected = {"main.dashboard", "main.documentation", "main.document", "main.imports", "sites.index", "sources.index"}
-        if request.endpoint in protected and not session.get("current_client_id"):
+        protected = {"main.dashboard", "main.documentation", "main.document"}
+        protected_prefixes = ("sites.", "sources.", "devices.", "imports.")
+        endpoint = request.endpoint or ""
+        if (endpoint in protected or endpoint.startswith(protected_prefixes)) and not session.get("current_client_id"):
             flash("Seleziona prima un cliente.", "warning")
             return redirect(url_for("clients.index"))
 
@@ -68,12 +73,15 @@ def create_app(test_config=None):
 
     with app.app_context():
         db.create_all()
+        # Le anteprime di importazione non devono essere persistenti. Rimuove
+        # la tabella di staging usata dalle versioni precedenti del POC.
+        if inspect(db.engine).has_table("import_batch"):
+            db.session.execute(text("DROP TABLE import_batch"))
         for integration_type in INTEGRATIONS:
             if db.session.get(IntegrationSetting, integration_type) is None:
                 db.session.add(IntegrationSetting(integration_type=integration_type, configuration=default_integration_configuration(integration_type)))
         db.session.commit()
 
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
-    app.logger.info("WikiMi POC started using %s", app.config["SQLALCHEMY_DATABASE_URI"])
+    app.logger.info("WikiMe POC started using %s", app.config["SQLALCHEMY_DATABASE_URI"])
     return app
-

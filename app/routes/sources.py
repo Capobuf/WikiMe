@@ -59,8 +59,9 @@ def edit(source_id):
 def delete(source_id):
     client = current_client_or_404()
     source = Source.query.filter_by(id=source_id, client_id=client.id).first_or_404()
+    for device in source.devices:
+        device.source_id = None
     db.session.delete(source)
     db.session.commit()
     flash("Fonte eliminata.", "success")
     return redirect(url_for("sources.index"))
-

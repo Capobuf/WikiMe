@@ -15,5 +15,4 @@ if __name__ == "__main__":
             seed_demo_data()
         print("Dati demo creati.")
     else:
-        app.run(debug=app.config["DEBUG"])
-
+        app.run(debug=app.config["DEBUG"], use_reloader=False)

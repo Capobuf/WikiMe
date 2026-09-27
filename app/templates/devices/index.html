@@ -1,0 +1,8 @@
+{% extends "base.html" %}
+{% block title %}Dispositivi{% endblock %}
+{% block content %}
+{% with title='Dispositivi', subtitle='Inventario generato dalle configurazioni di ' ~ current_client.name, action_url=url_for('imports.index'), action_label='Importa configurazioni' %}{% include 'partials/page_header.html' %}{% endwith %}
+<div class="row row-cards">
+{% for device in devices %}<div class="col-md-6 col-xl-4"><a class="card card-link h-100" href="{{ url_for('devices.detail', device_id=device.id) }}"><div class="card-body"><div class="d-flex align-items-start"><span class="avatar bg-azure-lt me-3">{{ (device.role or 'D')[:2] }}</span><div><span class="badge bg-azure-lt">{{ device.role or 'Dispositivo' }}</span><h3 class="card-title mt-2 mb-0">{{ device.name }}</h3></div></div><dl class="row mt-3 mb-0"><dt class="col-4 text-secondary fw-normal">Modello</dt><dd class="col-8">{{ device.model or '—' }}</dd><dt class="col-4 text-secondary fw-normal">IP</dt><dd class="col-8">{{ device.management_ip or '—' }}</dd><dt class="col-4 text-secondary fw-normal">Sede</dt><dd class="col-8">{{ device.site.name if device.site else '—' }}</dd></dl></div></a></div>{% else %}<div class="col-12"><div class="card"><div class="empty"><p class="empty-title">Nessun dispositivo</p><p class="empty-subtitle text-secondary">Importa una o più configurazioni per creare automaticamente l'inventario.</p><div class="empty-action"><a class="btn btn-primary" href="{{ url_for('imports.index') }}">Importa configurazioni</a></div></div></div></div>{% endfor %}
+</div>
+{% endblock %}

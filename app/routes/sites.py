@@ -52,8 +52,9 @@ def delete(site_id):
     site = Site.query.filter_by(id=site_id, client_id=client.id).first_or_404()
     for source in site.sources:
         source.site_id = None
+    for device in site.devices:
+        device.site_id = None
     db.session.delete(site)
     db.session.commit()
     flash("Sede eliminata.", "success")
     return redirect(url_for("sites.index"))
-

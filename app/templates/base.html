@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>{% block title %}WikiMi{% endblock %} · POC</title>
+  <title>{% block title %}WikiMe{% endblock %} · POC</title>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/core@1.4.0/dist/css/tabler.min.css">
   <script src="https://unpkg.com/htmx.org@2.0.8" defer></script>
 </head>
@@ -11,7 +11,7 @@
 <div class="page">
   <header class="navbar navbar-expand-md d-print-none">
     <div class="container-xl">
-      <a class="navbar-brand navbar-brand-autodark" href="{{ url_for('main.home') }}">WikiMi <span class="badge bg-azure-lt ms-2">POC</span></a>
+      <a class="navbar-brand navbar-brand-autodark" href="{{ url_for('main.home') }}">WikiMe <span class="badge bg-azure-lt ms-2">POC</span></a>
       <div class="navbar-nav flex-row order-md-last">
         {% if all_clients %}
         <form method="post" class="d-flex align-items-center gap-2" id="client-selector">
@@ -40,7 +40,8 @@
             <a class="list-group-item list-group-item-action {% if request.endpoint == 'main.documentation' %}active{% endif %}" href="{{ url_for('main.documentation') }}">Documentazione</a>
             <a class="list-group-item list-group-item-action {% if request.endpoint and request.endpoint.startswith('sites.') %}active{% endif %}" href="{{ url_for('sites.index') }}">Sedi</a>
             <a class="list-group-item list-group-item-action {% if request.endpoint and request.endpoint.startswith('sources.') %}active{% endif %}" href="{{ url_for('sources.index') }}">Fonti</a>
-            <a class="list-group-item list-group-item-action {% if request.endpoint == 'main.imports' %}active{% endif %}" href="{{ url_for('main.imports') }}">Importazioni</a>
+            <a class="list-group-item list-group-item-action {% if request.endpoint and request.endpoint.startswith('devices.') %}active{% endif %}" href="{{ url_for('devices.index') }}">Dispositivi</a>
+            <a class="list-group-item list-group-item-action {% if request.endpoint and request.endpoint.startswith('imports.') %}active{% endif %}" href="{{ url_for('imports.index') }}">Importazioni</a>
             <a class="list-group-item list-group-item-action {% if request.endpoint == 'main.document' %}active{% endif %}" href="{{ url_for('main.document') }}">Documento</a>
             {% endif %}
             <a class="list-group-item list-group-item-action {% if request.endpoint and request.endpoint.startswith('settings.') %}active{% endif %}" href="{{ url_for('settings.index') }}">Impostazioni</a>
@@ -57,4 +58,3 @@
 <script src="https://cdn.jsdelivr.net/npm/@tabler/core@1.4.0/dist/js/tabler.min.js"></script>
 </body>
 </html>
-

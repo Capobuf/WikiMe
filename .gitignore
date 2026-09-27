@@ -5,3 +5,6 @@ __pycache__/
 .env
 instance/*.db
 
+# Export di configurazione di rete (possono contenere credenziali e dati sensibili)
+*.rsc
+*.swb
