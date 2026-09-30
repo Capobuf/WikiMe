@@ -7,11 +7,14 @@ import pytest
 from app import create_app
 from app.documentation import (
     DEFAULT_MODES, build_document_context, get_effective_mode, get_global_settings,
-    is_documented_item, item_fingerprint, significant_interface,
+    initialize_client_document, is_documented_item, item_fingerprint, significant_interface,
 )
 from app.extensions import db
 from app.importers import parse_configuration
-from app.models import Client, Device, DocumentationSetting, IntegrationSetting, Site
+from app.models import (
+    Client, ClientDocument, Device, DocumentBlock, DocumentSection,
+    DocumentationSetting, IntegrationSetting, Site,
+)
 from .conftest import create_client
 from .test_app import ROUTEROS_SAMPLE, SWITCHOS_SAMPLE
 
@@ -310,3 +313,171 @@ def test_identical_duplicate_items_share_exclusion(app, client, selected):
     assert "NAT A" not in client.get("/document").text
     _, _, boxes = analyze(client, config)
     assert "checked" not in next(box for box in boxes if box["aria-label"] == "Documenta elemento 3 di NAT")
+
+
+def test_document_initialization_is_unique_idempotent_and_never_repopulates_empty(app, client):
+    create_client(client)
+    with app.app_context():
+        customer = Client.query.one()
+        assert ClientDocument.query.filter_by(client_id=customer.id).count() == 1
+        document = customer.document
+        assert [section.title for section in sorted(document.sections, key=lambda item: item.position)] == [
+            "Informazioni generali", "Sedi", "Rete",
+        ]
+        network = next(section for section in document.sections if section.title == "Rete")
+        assert [block.dataset_key for block in sorted(network.blocks, key=lambda item: item.position)] == [
+            "Device", "Bridges", "VLAN", "IP Addresses", "Routes / Gateway", "DNS",
+            "DHCP", "DHCP leases", "NAT", "Firewall", "VPN", "VPN users", "Interfaces",
+        ]
+        original_counts = (DocumentSection.query.count(), DocumentBlock.query.count())
+        initialize_client_document(customer)
+        initialize_client_document(customer)
+        db.session.commit()
+        assert (DocumentSection.query.count(), DocumentBlock.query.count()) == original_counts
+        for section in list(document.sections):
+            db.session.delete(section)
+        db.session.commit()
+        initialize_client_document(customer)
+        db.session.commit()
+        assert ClientDocument.query.count() == 1
+        assert DocumentSection.query.count() == 0
+        assert DocumentBlock.query.count() == 0
+
+
+def test_hierarchy_block_order_and_safe_markdown_rendering(app, client, selected):
+    with app.app_context():
+        document = db.session.get(Client, selected).document
+        for section in list(document.sections):
+            db.session.delete(section)
+        later = DocumentSection(document_id=document.id, title="Dopo", position=20)
+        root = DocumentSection(document_id=document.id, title="Prima", position=10)
+        db.session.add_all([later, root])
+        db.session.flush()
+        child = DocumentSection(document_id=document.id, parent_id=root.id, title="Figlia", position=0)
+        db.session.add(child)
+        db.session.flush()
+        db.session.add_all([
+            DocumentBlock(section_id=root.id, kind="markdown", position=2, markdown="SECONDO"),
+            DocumentBlock(section_id=root.id, kind="markdown", position=1, markdown=(
+                "- voce\n\n```shell\necho ok\n```\n\n| A | B |\n|---|---|\n| 1 | 2 |\n\n"
+                "<script>alert('x')</script>"
+            )),
+            DocumentBlock(section_id=child.id, kind="markdown", position=0, markdown="CONTENUTO FIGLIA"),
+            DocumentBlock(section_id=later.id, kind="markdown", position=0, markdown="CONTENUTO DOPO"),
+        ])
+        root_id, child_id = root.id, child.id
+        db.session.commit()
+    text = client.get("/document").text
+    assert text.index("Prima") < text.index("Figlia") < text.index("Dopo")
+    assert text.index("echo ok") < text.index("SECONDO") < text.index("CONTENUTO FIGLIA")
+    assert f'id="section-{root_id}"' in text and f'id="section-{child_id}"' in text
+    assert "<ul>" in text and "<pre><code" in text and "<table>" in text
+    assert "<script>alert" not in text and "&lt;script&gt;" in text
+    assert "Rinomina" not in text and "Aggiungi blocco" not in text
+
+
+def test_move_actions_only_reorder_siblings_and_blocks(app, client, selected):
+    with app.app_context():
+        document = db.session.get(Client, selected).document
+        for section in list(document.sections):
+            db.session.delete(section)
+        first = DocumentSection(document_id=document.id, title="Root A", position=0)
+        second = DocumentSection(document_id=document.id, title="Root B", position=1)
+        db.session.add_all([first, second])
+        db.session.flush()
+        child = DocumentSection(document_id=document.id, parent_id=first.id, title="Child", position=0)
+        db.session.add(child)
+        db.session.flush()
+        first_block = DocumentBlock(section_id=first.id, kind="markdown", position=0, markdown="Block A")
+        second_block = DocumentBlock(section_id=first.id, kind="markdown", position=1, markdown="Block B")
+        db.session.add_all([first_block, second_block])
+        db.session.commit()
+        ids = first.id, second.id, child.id, first_block.id, second_block.id
+    first_id, second_id, child_id, first_block_id, second_block_id = ids
+    client.post(f"/documentation/sections/{second_id}/move-up")
+    client.post(f"/documentation/sections/{child_id}/move-up")
+    client.post(f"/documentation/blocks/{second_block_id}/move-up")
+    with app.app_context():
+        roots = DocumentSection.query.filter_by(parent_id=None).order_by(DocumentSection.position, DocumentSection.id).all()
+        assert [item.id for item in roots] == [second_id, first_id]
+        assert db.session.get(DocumentSection, child_id).parent_id == first_id
+        blocks = DocumentBlock.query.filter_by(section_id=first_id).order_by(DocumentBlock.position, DocumentBlock.id).all()
+        assert [item.id for item in blocks] == [second_block_id, first_block_id]
+
+
+def test_dataset_scope_is_live_and_site_delete_removes_only_scoped_blocks(app, client, selected):
+    client.post("/sites/new", data={"name": "HQ"})
+    client.post("/sites/new", data={"name": "Branch"})
+    with app.app_context():
+        customer = db.session.get(Client, selected)
+        hq = Site.query.filter_by(name="HQ").one()
+        branch = Site.query.filter_by(name="Branch").one()
+        section = DocumentSection(document_id=customer.document.id, title="VLAN dedicate", position=99)
+        db.session.add(section)
+        db.session.flush()
+        scoped = DocumentBlock(section_id=section.id, kind="dataset", dataset_key="VLAN", site_id=hq.id, position=0)
+        db.session.add(scoped)
+        db.session.add_all([
+            Device(client_id=customer.id, site_id=hq.id, name="HQ-Router", fingerprint="hq",
+                   data={"sections": {"VLAN": [{"vlan-id": "10", "name": "HQ-VLAN"}]}}),
+            Device(client_id=customer.id, site_id=branch.id, name="Branch-Router", fingerprint="branch",
+                   data={"sections": {"VLAN": [{"vlan-id": "20", "name": "BRANCH-VLAN"}]}}),
+        ])
+        db.session.commit()
+        scoped_id, section_id, hq_id = scoped.id, section.id, hq.id
+    text = client.get("/document").text
+    dedicated = text[text.index(f'<section id="section-{section_id}"'):]
+    assert "HQ-VLAN" in dedicated and "BRANCH-VLAN" not in dedicated
+    with app.app_context():
+        global_block = DocumentBlock(section_id=section_id, kind="dataset", dataset_key="VLAN", position=1)
+        db.session.add(global_block)
+        db.session.commit()
+        global_id = global_block.id
+    text = client.get("/document").text
+    assert "HQ" in text and "Branch" in text and "HQ-VLAN" in text and "BRANCH-VLAN" in text
+    with app.app_context():
+        hq_device = Device.query.filter_by(name="HQ-Router").one()
+        hq_device.data = {"sections": {"VLAN": [{"vlan-id": "11", "name": "HQ-VLAN-UPDATED"}]}}
+        db.session.commit()
+    assert "HQ-VLAN-UPDATED" in client.get("/document").text
+    with app.app_context():
+        assert db.session.get(DocumentBlock, scoped_id).dataset_key == "VLAN"
+    client.post(f"/sites/{hq_id}/delete")
+    with app.app_context():
+        assert db.session.get(DocumentBlock, scoped_id) is None
+        assert db.session.get(DocumentBlock, global_id).site_id is None
+
+
+def test_section_delete_cascades_and_document_actions_are_client_isolated(app, client, selected):
+    with app.app_context():
+        first = db.session.get(Client, selected)
+        root = DocumentSection(document_id=first.document.id, title="Delete me", position=50)
+        db.session.add(root)
+        db.session.flush()
+        child = DocumentSection(document_id=first.document.id, parent_id=root.id, title="Child", position=0)
+        db.session.add(child)
+        db.session.flush()
+        block = DocumentBlock(section_id=child.id, kind="markdown", markdown="private", position=0)
+        second = Client(company_name="Other")
+        db.session.add_all([block, second])
+        db.session.flush()
+        initialize_client_document(second)
+        foreign_site = Site(client_id=second.id, name="Foreign")
+        db.session.add(foreign_site)
+        db.session.commit()
+        root_id, child_id, block_id = root.id, child.id, block.id
+        other_section_id = second.document.sections[0].id
+        own_section_id = next(section.id for section in first.document.sections if section.parent_id is None and section.id != root.id)
+        foreign_site_id = foreign_site.id
+    assert client.post(f"/documentation/sections/{other_section_id}/edit", data={"title": "Hacked"}).status_code == 404
+    response = client.post(
+        f"/documentation/sections/{own_section_id}/blocks/new",
+        data={"kind": "dataset", "dataset_key": "VLAN", "site_id": foreign_site_id},
+    )
+    assert response.status_code == 200 and "non appartiene" in response.text
+    client.post(f"/documentation/sections/{root_id}/delete")
+    with app.app_context():
+        assert db.session.get(DocumentSection, root_id) is None
+        assert db.session.get(DocumentSection, child_id) is None
+        assert db.session.get(DocumentBlock, block_id) is None
+        assert db.session.get(DocumentSection, other_section_id).title != "Hacked"

@@ -33,7 +33,7 @@ Variabili disponibili: `FLASK_ENV`, `SECRET_KEY` (usata soltanto per firmare la 
 - `/settings/documentation`: preferenze documentali globali, indipendenti dalla sorgente
 - `/imports`: upload multiplo/copia-incolla, analisi e anteprima di export RouterOS e SwitchOS
 - `/devices`: inventario dei dispositivi generato dalle configurazioni importate
-- `/documentation`: vista operativa della documentazione corrente
+- `/documentation`: composer operativo di sezioni gerarchiche e blocchi Markdown/dataset
 - `/document`: preview HTML del documento cliente
 
 ## Struttura
@@ -46,7 +46,9 @@ L'import salva in `Device.data["sections"]` lo snapshot completo normalizzato e 
 
 Le esclusioni sono salvate in `Device.data["documentation"]["excluded_items"]`, raggruppate per sezione. Ogni fingerprint SHA-256 include nome della sezione e contenuto normalizzato completo, serializzati come JSON canonico UTF-8. L'ordine delle chiavi non conta; una modifica al contenuto genera un nuovo fingerprint e ripropone l'elemento. I fingerprint assenti dallo snapshot vengono conservati: un elemento identico che ricompare resta escluso. Reselezionarlo nella preview elimina la sua esclusione. Righe perfettamente identiche condividono il fingerprint: se una è deselezionata, sono escluse tutte le copie identiche.
 
-`app/documentation.py` centralizza i default e costruisce la projection condivisa da `/documentation` e `/document`, raggruppata per sede (inclusi gli apparati senza sede). Precedenza: esclusione puntuale, override sede, preferenza globale, default. `Device = hidden` nasconde la tabella degli apparati, non le altre categorie di rete, che hanno preferenze indipendenti.
+Ogni cliente possiede un solo `ClientDocument`, composto da `DocumentSection` gerarchiche e blocchi ordinati. I blocchi manuali conservano Markdown; i blocchi dataset conservano soltanto la chiave del dataset e un eventuale filtro sede. Il documento iniziale viene creato una sola volta con Informazioni generali, Sedi e Rete, senza ripopolare un documento che il tecnico ha successivamente svuotato.
+
+`app/documentation.py` centralizza i default e risolve i dataset a runtime dai dati correnti, raggruppati per sede (inclusi gli apparati senza sede). Il reimport aggiorna quindi il documento senza duplicare snapshot nei blocchi. Precedenza: esclusione puntuale, override sede, preferenza globale, default. `Device = hidden` nasconde la tabella degli apparati, non le altre categorie di rete, che hanno preferenze indipendenti. Il Markdown viene renderizzato lato server con Mistune, tabelle abilitate e HTML raw sottoposto a escaping.
 
 Le preferenze globali sono un JSON nella singola riga `DocumentationSetting` con ID 1. I default sono: Device, VLAN, IP Addresses, DHCP, NAT e VPN in **detail**; Interfaces, Bridges, Routes / Gateway, DNS e VPN users in **summary**; DHCP leases e Firewall in **hidden**. Summary per le interfacce mostra soltanto porte significative in base ai campi disponibili (rinomina, note, VLAN, bridge, bonding, disabilitazione, SFP, PoE). Per alcune categorie semplici Summary e Detail coincidono. Le tabelle usano colonne esplicite e omettono quelle senza dati.
 
@@ -56,7 +58,7 @@ Le vecchie impostazioni MikroTik `enabled_items` non sono più utilizzate e non 
 
 ### Aggiornamento SQLite
 
-Non serve ricreare il database: `db.create_all()` crea la nuova tabella delle preferenze e l'avvio aggiunge, se assente, la colonna JSON `site.documentation_overrides` con default `{}`. L'operazione è additiva e ripetibile; non introduce un framework di migrazione. Come per gli altri cambi di schema POC, conserva una copia del file SQLite prima dell'aggiornamento. Il parser e il suo insieme di dati supportati restano invariati; non vengono dedotte informazioni mancanti.
+Non serve ricreare il database: `db.create_all()` crea le nuove tabelle documentali e la tabella delle preferenze; l'avvio aggiunge, se assente, la colonna JSON `site.documentation_overrides` con default `{}` e inizializza soltanto i clienti privi di documento. L'operazione è additiva, ripetibile e non introduce un framework di migrazione. Come per gli altri cambi di schema POC, conserva una copia del file SQLite prima dell'aggiornamento. Il parser e il suo insieme di dati supportati restano invariati; non vengono dedotte informazioni mancanti.
 
 ## Test
 

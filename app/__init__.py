@@ -33,13 +33,14 @@ def create_app(test_config=None):
 
     from .routes.clients import bp as clients_bp
     from .routes.devices import bp as devices_bp
+    from .routes.documentation import bp as documentation_bp
     from .routes.imports import bp as imports_bp
     from .routes.main import bp as main_bp
     from .routes.settings import bp as settings_bp
     from .routes.sites import bp as sites_bp
     from .routes.sources import bp as sources_bp
 
-    for blueprint in (main_bp, clients_bp, sites_bp, sources_bp, devices_bp, imports_bp, settings_bp):
+    for blueprint in (main_bp, clients_bp, sites_bp, sources_bp, devices_bp, imports_bp, settings_bp, documentation_bp):
         app.register_blueprint(blueprint)
 
     @app.context_processor
@@ -55,8 +56,8 @@ def create_app(test_config=None):
 
     @app.before_request
     def require_current_client():
-        protected = {"main.dashboard", "main.documentation", "main.document"}
-        protected_prefixes = ("sites.", "sources.", "devices.", "imports.")
+        protected = {"main.dashboard", "main.document"}
+        protected_prefixes = ("sites.", "sources.", "devices.", "imports.", "documentation.")
         endpoint = request.endpoint or ""
         if (endpoint in protected or endpoint.startswith(protected_prefixes)) and not session.get("current_client_id"):
             flash("Seleziona prima un cliente.", "warning")
@@ -82,6 +83,8 @@ def create_app(test_config=None):
         for integration_type in INTEGRATIONS:
             if db.session.get(IntegrationSetting, integration_type) is None:
                 db.session.add(IntegrationSetting(integration_type=integration_type, configuration=default_integration_configuration(integration_type)))
+        from .documentation import initialize_missing_client_documents
+        initialize_missing_client_documents()
         db.session.commit()
 
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")

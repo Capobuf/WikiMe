@@ -2,6 +2,7 @@ from flask import Blueprint, flash, redirect, render_template, request, session,
 
 from ..extensions import db
 from ..models import Client
+from ..documentation import initialize_client_document
 
 
 bp = Blueprint("clients", __name__, url_prefix="/clients")
@@ -27,6 +28,8 @@ def create():
             flash("La ragione sociale è obbligatoria.", "danger")
         else:
             db.session.add(client)
+            db.session.flush()
+            initialize_client_document(client)
             db.session.commit()
             flash("Cliente creato.", "success")
             return redirect(url_for("clients.index"))
@@ -61,4 +64,3 @@ def select(client_id):
     session["current_client_id"] = client.id
     flash(f"Cliente corrente: {client.name}.", "success")
     return redirect(request.form.get("next") or url_for("main.dashboard"))
-

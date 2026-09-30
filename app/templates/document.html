@@ -4,6 +4,9 @@
 <div class="d-print-none">{% with title='Documento cliente', subtitle='Preview HTML della documentazione corrente' %}{% include 'partials/page_header.html' %}{% endwith %}</div>
 <article class="card"><div class="card-body p-md-5">
 <div class="text-center mb-5"><div class="text-uppercase text-secondary">Documentazione tecnica</div><h1>{{ client.name }}</h1></div>
+{% if section_tree %}<nav class="mb-5" aria-label="Indice"><h2 class="h3">Indice</h2>
+{% macro toc(nodes) %}<ul>{% for node in nodes %}<li><a href="#section-{{ node.model.id }}">{{ node.model.title }}</a>{% if node.children %}{{ toc(node.children) }}{% endif %}</li>{% endfor %}</ul>{% endmacro %}
+{{ toc(section_tree) }}</nav>{% endif %}
 {% include 'partials/document_content.html' %}
 </div></article>
 {% endblock %}

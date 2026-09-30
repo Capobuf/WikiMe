@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% block title %}{{ 'Modifica blocco' if block and block.id else 'Nuovo blocco' }}{% endblock %}
+{% block content %}
+{% with title=('Modifica blocco' if block and block.id else 'Nuovo blocco'), subtitle='Sezione: ' ~ section.title %}{% include 'partials/page_header.html' %}{% endwith %}
+<form method="post" class="card">
+  <div class="card-body">
+    <div class="mb-3"><label class="form-label" for="kind">Tipo</label><select class="form-select" id="kind" name="kind" required>
+      <option value="markdown" {% if not block or block.kind == 'markdown' %}selected{% endif %}>Markdown</option>
+      <option value="dataset" {% if block and block.kind == 'dataset' %}selected{% endif %}>Dataset</option>
+    </select></div>
+    <div class="mb-3"><label class="form-label" for="markdown">Contenuto</label><textarea class="form-control" id="markdown" name="markdown" rows="12">{{ block.markdown or '' }}</textarea><div class="form-hint">Supporta Markdown, liste, tabelle, codice, link e immagini tramite URL.</div></div>
+    <div class="row g-3">
+      <div class="col-md-6"><label class="form-label" for="dataset_key">Dataset</label><select class="form-select" id="dataset_key" name="dataset_key">{% for key, label in datasets.items() %}<option value="{{ key }}" {% if block.dataset_key == key %}selected{% endif %}>{{ label }}</option>{% endfor %}</select></div>
+      <div class="col-md-6"><label class="form-label" for="site_id">Sede</label><select class="form-select" id="site_id" name="site_id"><option value="">Tutte le sedi</option>{% for site in sites %}<option value="{{ site.id }}" {% if block.site_id == site.id %}selected{% endif %}>{{ site.name }}</option>{% endfor %}</select></div>
+    </div>
+  </div>
+  <div class="card-footer d-flex justify-content-between"><a class="btn" href="{{ url_for('documentation.index') }}">Annulla</a><button class="btn btn-primary">Salva blocco</button></div>
+</form>
+{% endblock %}

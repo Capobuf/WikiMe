@@ -1,9 +1,62 @@
 {% extends "base.html" %}
 {% block title %}Documentazione{% endblock %}
 {% block content %}
-{% with title='Documentazione', subtitle='Contenuto corrente di ' ~ client.name, action_url=url_for('main.document'), action_label='Apri documento' %}{% include 'partials/page_header.html' %}{% endwith %}
-<div class="alert alert-info"><div>Questi sono i dati che compariranno nel documento, dopo preferenze globali, override della sede ed esclusioni puntuali. <a href="{{ url_for('settings.documentation') }}">Configura le preferenze</a>.</div></div>
-<div class="card"><div class="card-body">{% include 'partials/document_content.html' %}
-{% if not groups %}<div class="empty"><p class="empty-title">Nessun dato di rete documentabile</p><p class="empty-subtitle text-secondary">Verifica le preferenze o importa una configurazione.</p><div class="empty-action"><a class="btn btn-primary" href="{{ url_for('imports.index') }}">Importa configurazioni</a></div></div>{% endif %}
-</div></div>
+{% with title='Documentazione', subtitle='Componi il documento tecnico di ' ~ client.name, action_url=url_for('main.document'), action_label='Apri documento' %}{% include 'partials/page_header.html' %}{% endwith %}
+<div class="alert alert-info">Testi manuali e dataset correnti vengono mostrati nello stesso documento. Le <a href="{{ url_for('settings.documentation') }}">preferenze documentali</a> continuano ad applicarsi ai dati importati.</div>
+
+<div class="card mb-4">
+  <div class="card-header"><h3 class="card-title">Nuova sezione principale</h3></div>
+  <div class="card-body"><form method="post" action="{{ url_for('documentation.section_create') }}" class="row g-2">
+    <div class="col"><input class="form-control" name="title" placeholder="Titolo della sezione" required></div>
+    <div class="col-auto"><button class="btn btn-primary">Aggiungi sezione</button></div>
+  </form></div>
+</div>
+
+{% macro section_editor(node) %}
+{% set section = node.model %}
+<div class="card mb-3">
+  <div class="card-header align-items-start gap-2">
+    <form method="post" action="{{ url_for('documentation.section_edit', section_id=section.id) }}" class="d-flex flex-grow-1 gap-2">
+      <input class="form-control fw-bold" name="title" value="{{ section.title }}" required aria-label="Titolo sezione">
+      <button class="btn">Rinomina</button>
+    </form>
+    <div class="btn-group">
+      <form method="post" action="{{ url_for('documentation.section_move_up', section_id=section.id) }}"><button class="btn" title="Sposta su">↑</button></form>
+      <form method="post" action="{{ url_for('documentation.section_move_down', section_id=section.id) }}"><button class="btn" title="Sposta giù">↓</button></form>
+    </div>
+    <form method="post" action="{{ url_for('documentation.section_delete', section_id=section.id) }}" onsubmit="return confirm('Eliminare la sezione, tutte le sottosezioni e i blocchi?')"><button class="btn btn-outline-danger">Elimina</button></form>
+  </div>
+  <div class="list-group list-group-flush">
+    {% for item in node.blocks %}{% set block = item.model %}
+    <div class="list-group-item d-flex align-items-center gap-3">
+      <span class="badge {{ 'bg-azure-lt' if block.kind == 'dataset' else 'bg-green-lt' }}">{{ 'Dataset' if block.kind == 'dataset' else 'Markdown' }}</span>
+      <div class="flex-grow-1">
+        {% if block.kind == 'dataset' %}<strong>{{ datasets[block.dataset_key] }}</strong><div class="text-secondary small">{{ block.site.name if block.site else 'Tutte le sedi' }}{% if not item.projection %} · nessun contenuto visibile{% endif %}</div>
+        {% else %}<div class="text-truncate">{{ (block.markdown or 'Blocco vuoto')|truncate(120) }}</div>{% endif %}
+      </div>
+      <div class="btn-group">
+        <form method="post" action="{{ url_for('documentation.block_move_up', block_id=block.id) }}"><button class="btn btn-sm" title="Sposta su">↑</button></form>
+        <form method="post" action="{{ url_for('documentation.block_move_down', block_id=block.id) }}"><button class="btn btn-sm" title="Sposta giù">↓</button></form>
+        <a class="btn btn-sm" href="{{ url_for('documentation.block_edit', block_id=block.id) }}">Modifica</a>
+        <form method="post" action="{{ url_for('documentation.block_delete', block_id=block.id) }}" onsubmit="return confirm('Eliminare questo blocco?')"><button class="btn btn-sm btn-outline-danger">Elimina</button></form>
+      </div>
+    </div>
+    {% else %}<div class="list-group-item text-secondary">Nessun blocco in questa sezione.</div>{% endfor %}
+  </div>
+  <div class="card-body border-top">
+    <div class="d-flex flex-wrap gap-2 mb-3"><a class="btn btn-outline-primary" href="{{ url_for('documentation.block_create', section_id=section.id) }}">Aggiungi blocco</a></div>
+    <form method="post" action="{{ url_for('documentation.section_create') }}" class="row g-2">
+      <input type="hidden" name="parent_id" value="{{ section.id }}">
+      <div class="col"><input class="form-control" name="title" placeholder="Titolo nuova sottosezione" required></div>
+      <div class="col-auto"><button class="btn">Aggiungi sottosezione</button></div>
+    </form>
+    {% if node.children %}<div class="mt-4">{% for child in node.children %}{{ section_editor(child) }}{% endfor %}</div>{% endif %}
+  </div>
+</div>
+{% endmacro %}
+
+{% for node in section_tree %}{{ section_editor(node) }}{% else %}
+<div class="card"><div class="empty"><p class="empty-title">Documento vuoto</p><p class="empty-subtitle text-secondary">Aggiungi una sezione principale per iniziare.</p></div></div>
+{% endfor %}
+{% if visible_section_tree %}<div class="card mt-4"><div class="card-header"><h3 class="card-title">Anteprima contenuti</h3></div><div class="card-body">{% with section_tree=visible_section_tree %}{% include 'partials/document_content.html' %}{% endwith %}</div></div>{% endif %}
 {% endblock %}

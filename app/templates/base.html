@@ -37,7 +37,7 @@
             <a class="list-group-item list-group-item-action {% if request.endpoint and request.endpoint.startswith('clients.') %}active{% endif %}" href="{{ url_for('clients.index') }}">Clienti</a>
             {% if current_client %}
             <a class="list-group-item list-group-item-action {% if request.endpoint == 'main.dashboard' %}active{% endif %}" href="{{ url_for('main.dashboard') }}">Panoramica</a>
-            <a class="list-group-item list-group-item-action {% if request.endpoint == 'main.documentation' %}active{% endif %}" href="{{ url_for('main.documentation') }}">Documentazione</a>
+            <a class="list-group-item list-group-item-action {% if request.endpoint and request.endpoint.startswith('documentation.') %}active{% endif %}" href="{{ url_for('documentation.index') }}">Documentazione</a>
             <a class="list-group-item list-group-item-action {% if request.endpoint and request.endpoint.startswith('sites.') %}active{% endif %}" href="{{ url_for('sites.index') }}">Sedi</a>
             <a class="list-group-item list-group-item-action {% if request.endpoint and request.endpoint.startswith('sources.') %}active{% endif %}" href="{{ url_for('sources.index') }}">Fonti</a>
             <a class="list-group-item list-group-item-action {% if request.endpoint and request.endpoint.startswith('devices.') %}active{% endif %}" href="{{ url_for('devices.index') }}">Dispositivi</a>

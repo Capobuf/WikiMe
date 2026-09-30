@@ -22,6 +22,10 @@ class Client(db.Model):
     sites = db.relationship("Site", backref="client", cascade="all, delete-orphan", lazy=True)
     sources = db.relationship("Source", backref="client", cascade="all, delete-orphan", lazy=True)
     devices = db.relationship("Device", backref="client", cascade="all, delete-orphan", lazy=True)
+    document = db.relationship(
+        "ClientDocument", backref="client", cascade="all, delete-orphan",
+        uselist=False, lazy=True,
+    )
 
     @property
     def name(self):
@@ -38,6 +42,7 @@ class Site(db.Model):
     documentation_overrides = db.Column(db.JSON, nullable=False, default=dict)
     sources = db.relationship("Source", backref="site", lazy=True)
     devices = db.relationship("Device", backref="site", lazy=True)
+    document_blocks = db.relationship("DocumentBlock", backref="site", lazy=True)
 
 
 class Source(db.Model):
@@ -89,3 +94,46 @@ class Device(db.Model):
     @property
     def sections(self):
         return self.data.get("sections", {})
+
+
+class ClientDocument(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    client_id = db.Column(db.Integer, db.ForeignKey("client.id"), nullable=False, unique=True, index=True)
+    created_at = db.Column(db.DateTime(timezone=True), default=utc_now, nullable=False)
+    updated_at = db.Column(db.DateTime(timezone=True), default=utc_now, onupdate=utc_now, nullable=False)
+    sections = db.relationship(
+        "DocumentSection", backref="document", cascade="all, delete-orphan", lazy=True,
+    )
+
+
+class DocumentSection(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    document_id = db.Column(db.Integer, db.ForeignKey("client_document.id"), nullable=False, index=True)
+    parent_id = db.Column(db.Integer, db.ForeignKey("document_section.id"), nullable=True, index=True)
+    title = db.Column(db.String(200), nullable=False)
+    position = db.Column(db.Integer, nullable=False, default=0)
+    created_at = db.Column(db.DateTime(timezone=True), default=utc_now, nullable=False)
+    updated_at = db.Column(db.DateTime(timezone=True), default=utc_now, onupdate=utc_now, nullable=False)
+    children = db.relationship(
+        "DocumentSection", backref=db.backref("parent", remote_side=[id]),
+        cascade="all, delete-orphan", single_parent=True, lazy=True,
+    )
+    blocks = db.relationship(
+        "DocumentBlock", backref="section", cascade="all, delete-orphan", lazy=True,
+    )
+
+
+class DocumentBlock(db.Model):
+    __table_args__ = (
+        db.CheckConstraint("kind IN ('markdown', 'dataset')", name="ck_document_block_kind"),
+    )
+
+    id = db.Column(db.Integer, primary_key=True)
+    section_id = db.Column(db.Integer, db.ForeignKey("document_section.id"), nullable=False, index=True)
+    kind = db.Column(db.String(20), nullable=False)
+    position = db.Column(db.Integer, nullable=False, default=0)
+    markdown = db.Column(db.Text, nullable=True)
+    dataset_key = db.Column(db.String(80), nullable=True)
+    site_id = db.Column(db.Integer, db.ForeignKey("site.id"), nullable=True, index=True)
+    created_at = db.Column(db.DateTime(timezone=True), default=utc_now, nullable=False)
+    updated_at = db.Column(db.DateTime(timezone=True), default=utc_now, onupdate=utc_now, nullable=False)

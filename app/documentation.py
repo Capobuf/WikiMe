@@ -4,8 +4,11 @@ import hashlib
 import json
 import re
 
+import mistune
+from markupsafe import Markup
+
 from .extensions import db
-from .models import DocumentationSetting
+from .models import ClientDocument, DocumentBlock, DocumentSection, DocumentationSetting
 
 
 DEFAULT_MODES = {
@@ -20,6 +23,15 @@ LABELS = {
     "VLAN": "VLAN", "IP Addresses": "Indirizzamento", "Routes / Gateway": "Routing",
     "DNS": "DNS", "DHCP": "DHCP", "DHCP leases": "Lease DHCP", "NAT": "NAT",
     "Firewall": "Firewall", "VPN": "VPN", "VPN users": "Utenti VPN",
+}
+NETWORK_DATASETS = (
+    "Device", "Bridges", "VLAN", "IP Addresses", "Routes / Gateway", "DNS",
+    "DHCP", "DHCP leases", "NAT", "Firewall", "VPN", "VPN users", "Interfaces",
+)
+DATASETS = {
+    "client_info": "Informazioni generali",
+    "sites": "Sedi",
+    **{key: LABELS[key] for key in NETWORK_DATASETS},
 }
 
 # Explicit columns keep technical fields readable and never expose arbitrary JSON.
@@ -114,25 +126,148 @@ def format_cell(item, key):
     return value
 
 
+_markdown = mistune.create_markdown(escape=True, plugins=["table"])
+
+
+def render_markdown(value):
+    return Markup(_markdown(value or ""))
+
+
+def initialize_client_document(client):
+    """Create the initial document once; an existing empty document stays empty."""
+    document = ClientDocument.query.filter_by(client_id=client.id).first()
+    if document is not None:
+        return document
+    document = ClientDocument(client_id=client.id)
+    db.session.add(document)
+    db.session.flush()
+    definitions = (
+        ("Informazioni generali", ["client_info"]),
+        ("Sedi", ["sites"]),
+        ("Rete", list(NETWORK_DATASETS)),
+    )
+    for section_position, (title, datasets) in enumerate(definitions):
+        section = DocumentSection(document_id=document.id, title=title, position=section_position)
+        db.session.add(section)
+        db.session.flush()
+        db.session.add_all([
+            DocumentBlock(section_id=section.id, kind="dataset", position=position, dataset_key=dataset)
+            for position, dataset in enumerate(datasets)
+        ])
+    return document
+
+
+def initialize_missing_client_documents():
+    from .models import Client
+
+    for client in Client.query.order_by(Client.id):
+        initialize_client_document(client)
+
+
+def build_dataset_projection(client, dataset_key, site_id=None, global_settings=None):
+    if dataset_key not in DATASETS:
+        raise ValueError("Unsupported dataset")
+    if site_id is not None:
+        site = next((item for item in client.sites if item.id == site_id), None)
+        if site is None:
+            raise ValueError("Site does not belong to client")
+    else:
+        site = None
+
+    if dataset_key == "client_info":
+        fields = [
+            ("Ragione sociale", client.company_name), ("Indirizzo", client.address),
+            ("Città", client.city), ("Email", client.email),
+            ("Telefono", client.phone), ("Sito web", client.website),
+        ]
+        return {"key": dataset_key, "label": DATASETS[dataset_key], "kind": "details",
+                "rows": [(label, value) for label, value in fields if value]}
+
+    if dataset_key == "sites":
+        rows = [{"name": item.name, "address": item.address, "description": item.description}
+                for item in sorted(client.sites, key=lambda item: (item.name.lower(), item.id))
+                if site_id is None or item.id == site_id]
+        if not rows:
+            return None
+        return {"key": dataset_key, "label": DATASETS[dataset_key], "kind": "sites", "rows": rows}
+
+    settings = global_settings or get_global_settings()
+    candidate_sites = [site] if site else [*sorted(client.sites, key=lambda item: (item.name.lower(), item.id)), None]
+    groups = []
+    for candidate_site in candidate_sites:
+        mode = get_effective_mode(dataset_key, candidate_site, settings)
+        if mode == "hidden":
+            continue
+        devices = sorted(
+            (device for device in client.devices if device.site_id == (candidate_site.id if candidate_site else None)),
+            key=lambda device: (device.name.lower(), device.id),
+        )
+        rows = []
+        for device in devices:
+            items = ([{key: getattr(device, key) for key, _ in COLUMNS["Device"]}]
+                     if dataset_key == "Device" else device.sections.get(dataset_key, []))
+            rows.extend(
+                {"device_name": device.name, "item": item}
+                for item in items
+                if is_documented_item(device, dataset_key, item)
+                and not (dataset_key == "Interfaces" and mode == "summary" and not significant_interface(item))
+            )
+        if rows:
+            groups.append({
+                "site": candidate_site, "mode": mode, "rows": rows,
+                "columns": visible_columns(dataset_key, [row["item"] for row in rows], mode),
+            })
+    if not groups:
+        return None
+    return {"key": dataset_key, "label": DATASETS[dataset_key], "kind": "network",
+            "scoped": site_id is not None, "groups": groups}
+
+
+def _section_tree(document, client, global_settings, include_empty=False):
+    sections = sorted(document.sections, key=lambda item: (item.position, item.id))
+    children = {}
+    for section in sections:
+        children.setdefault(section.parent_id, []).append(section)
+
+    def build(section):
+        blocks = []
+        for block in sorted(section.blocks, key=lambda item: (item.position, item.id)):
+            if block.kind == "markdown":
+                if include_empty or (block.markdown or "").strip():
+                    blocks.append({"model": block, "html": render_markdown(block.markdown)})
+            else:
+                projection = build_dataset_projection(client, block.dataset_key, block.site_id, global_settings)
+                if include_empty or projection:
+                    blocks.append({"model": block, "projection": projection})
+        child_nodes = [build(child) for child in children.get(section.id, [])]
+        child_nodes = [child for child in child_nodes if include_empty or child["visible"]]
+        return {"model": section, "blocks": blocks, "children": child_nodes,
+                "visible": bool(blocks or child_nodes)}
+
+    return [node for section in children.get(None, []) if (node := build(section))["visible"] or include_empty]
+
+
+def build_composed_document_context(client, include_empty=False):
+    document = initialize_client_document(client)
+    tree = _section_tree(document, client, get_global_settings(), include_empty)
+    visible_tree = tree if not include_empty else _section_tree(document, client, get_global_settings())
+    return {"client": client, "document": document, "section_tree": tree,
+            "visible_section_tree": visible_tree, "datasets": DATASETS, "format_cell": format_cell}
+
+
 def build_document_context(client, global_settings):
+    """Legacy aggregate retained for import-preview compatibility and focused tests."""
     sites = sorted(client.sites, key=lambda site: site.name.lower())
     groups = []
     for site in [*sites, None]:
-        devices = sorted((device for device in client.devices if device.site_id == (site.id if site else None)), key=lambda device: device.name.lower())
         blocks = []
-        for section in ["Device", "Bridges", "VLAN", "IP Addresses", "Routes / Gateway", "DNS", "DHCP", "DHCP leases", "NAT", "Firewall", "VPN", "VPN users", "Interfaces"]:
-            mode = get_effective_mode(section, site, global_settings)
-            if mode == "hidden":
-                continue
-            rows = []
-            for device in devices:
-                items = [{key: getattr(device, key) for key, _ in COLUMNS["Device"]}] if section == "Device" else device.sections.get(section, [])
-                rows.extend({"device_name": device.name, "item": item} for item in items
-                            if is_documented_item(device, section, item)
-                            and not (section == "Interfaces" and mode == "summary" and not significant_interface(item)))
-            if rows:
-                blocks.append({"section": section, "label": LABELS[section], "mode": mode, "rows": rows,
-                               "columns": visible_columns(section, [row["item"] for row in rows], mode)})
+        for section in NETWORK_DATASETS:
+            projection = build_dataset_projection(client, section, site.id if site else None, global_settings)
+            if projection:
+                group = next((item for item in projection["groups"]
+                              if item["site"] is site or (site is None and item["site"] is None)), None)
+                if group:
+                    blocks.append({"section": section, "label": LABELS[section], **group})
         if blocks:
             groups.append({"site": site, "blocks": blocks})
     return {"client": client, "sites": sites, "groups": groups, "format_cell": format_cell}

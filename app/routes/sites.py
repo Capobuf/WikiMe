@@ -1,7 +1,7 @@
 from flask import Blueprint, flash, redirect, render_template, request, url_for
 
 from ..extensions import db
-from ..models import Site
+from ..models import DocumentBlock, Site
 from ..documentation import DEFAULT_MODES, MODES, LABELS, get_global_settings, valid_modes
 from .helpers import current_client_or_404
 
@@ -57,6 +57,7 @@ def delete(site_id):
         source.site_id = None
     for device in site.devices:
         device.site_id = None
+    DocumentBlock.query.filter_by(site_id=site.id).delete(synchronize_session=False)
     db.session.delete(site)
     db.session.commit()
     flash("Sede eliminata.", "success")
