@@ -1,3 +1,4 @@
+import os
 import sys
 
 from app import create_app
@@ -15,4 +16,9 @@ if __name__ == "__main__":
             seed_demo_data()
         print("Dati demo creati.")
     else:
-        app.run(debug=app.config["DEBUG"], use_reloader=False)
+        app.run(
+            host="127.0.0.1",
+            port=int(os.environ.get("WIKIME_PORT", "5000")),
+            debug=app.config["DEBUG"],
+            use_reloader=False,
+        )

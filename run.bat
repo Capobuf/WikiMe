@@ -2,6 +2,7 @@
 setlocal
 
 cd /d "%~dp0"
+set "WIKIME_PORT=51378"
 
 if not exist ".venv\Scripts\python.exe" (
     echo Ambiente virtuale non trovato.
@@ -11,21 +12,21 @@ if not exist ".venv\Scripts\python.exe" (
     exit /b 1
 )
 
-echo Riavvio WikiMe POC su http://127.0.0.1:5000
+echo Riavvio WikiMe POC su http://127.0.0.1:%WIKIME_PORT%
 echo Arresto l'eventuale istanza precedente...
 
 taskkill /FI "WINDOWTITLE eq WikiMe Server*" /T /F >nul 2>&1
 taskkill /FI "WINDOWTITLE eq WikiMi Server*" /T /F >nul 2>&1
 
-powershell -NoProfile -Command "$connection = Get-NetTCPConnection -LocalPort 5000 -State Listen -ErrorAction SilentlyContinue | Select-Object -First 1; if (-not $connection) { exit 0 }; try { $response = Invoke-WebRequest -UseBasicParsing -Uri 'http://127.0.0.1:5000' -TimeoutSec 2 } catch { exit 2 }; if ($response.Content -notmatch 'WikiM(e|i)') { exit 3 }; Stop-Process -Id $connection.OwningProcess -Force -ErrorAction SilentlyContinue"
+powershell -NoProfile -Command "$connection = Get-NetTCPConnection -LocalPort %WIKIME_PORT% -State Listen -ErrorAction SilentlyContinue | Select-Object -First 1; if (-not $connection) { exit 0 }; try { $response = Invoke-WebRequest -UseBasicParsing -Uri 'http://127.0.0.1:%WIKIME_PORT%' -TimeoutSec 2 } catch { exit 2 }; if ($response.Content -notmatch 'WikiM(e|i)') { exit 3 }; Stop-Process -Id $connection.OwningProcess -Force -ErrorAction SilentlyContinue"
 if errorlevel 3 (
-    echo La porta 5000 e' utilizzata da un'altra applicazione.
+    echo La porta %WIKIME_PORT% e' utilizzata da un'altra applicazione.
     pause
     exit /b 1
 )
 
 for /l %%I in (1,1,10) do (
-    powershell -NoProfile -Command "if (Get-NetTCPConnection -LocalPort 5000 -State Listen -ErrorAction SilentlyContinue) { Start-Sleep -Milliseconds 500; exit 1 } else { exit 0 }"
+    powershell -NoProfile -Command "if (Get-NetTCPConnection -LocalPort %WIKIME_PORT% -State Listen -ErrorAction SilentlyContinue) { Start-Sleep -Milliseconds 500; exit 1 } else { exit 0 }"
     if not errorlevel 1 goto :start_server
 )
 
@@ -43,7 +44,7 @@ start "WikiMe Server" ".venv\Scripts\python.exe" run.py
 
 echo Attendo l'avvio del server...
 for /l %%I in (1,1,20) do (
-    powershell -NoProfile -Command "try { Invoke-WebRequest -UseBasicParsing -Uri 'http://127.0.0.1:5000' -TimeoutSec 1 | Out-Null; exit 0 } catch { Start-Sleep -Seconds 1; exit 1 }"
+    powershell -NoProfile -Command "try { Invoke-WebRequest -UseBasicParsing -Uri 'http://127.0.0.1:%WIKIME_PORT%' -TimeoutSec 1 | Out-Null; exit 0 } catch { Start-Sleep -Seconds 1; exit 1 }"
     if not errorlevel 1 goto :open_browser
 )
 
@@ -54,6 +55,6 @@ exit /b 1
 
 :open_browser
 echo Apro WikiMe nel browser predefinito...
-start "" "http://127.0.0.1:5000"
+start "" "http://127.0.0.1:%WIKIME_PORT%"
 
 endlocal

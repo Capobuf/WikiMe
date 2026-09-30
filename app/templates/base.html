@@ -31,7 +31,7 @@
   <div class="page-wrapper">
     <div class="container-xl">
       {% if current_client %}<div class="alert alert-primary mt-3 mb-0 py-2"><strong>{{ current_client.name }}</strong> — contesto operativo corrente</div>{% endif %}
-      <div class="row g-4 py-4">
+      <div class="row gy-4 gx-3 py-4">
         <aside class="col-12 col-md-3 col-lg-2 d-print-none">
           <div class="card"><div class="list-group list-group-flush">
             <a class="list-group-item list-group-item-action {% if request.endpoint and request.endpoint.startswith('clients.') %}active{% endif %}" href="{{ url_for('clients.index') }}">Clienti</a>
@@ -44,7 +44,8 @@
             <a class="list-group-item list-group-item-action {% if request.endpoint and request.endpoint.startswith('imports.') %}active{% endif %}" href="{{ url_for('imports.index') }}">Importazioni</a>
             <a class="list-group-item list-group-item-action {% if request.endpoint == 'main.document' %}active{% endif %}" href="{{ url_for('main.document') }}">Documento</a>
             {% endif %}
-            <a class="list-group-item list-group-item-action {% if request.endpoint and request.endpoint.startswith('settings.') %}active{% endif %}" href="{{ url_for('settings.index') }}">Impostazioni</a>
+            <a class="list-group-item list-group-item-action {% if request.endpoint and request.endpoint in ('settings.index', 'settings.detail') %}active{% endif %}" href="{{ url_for('settings.index') }}">Integrazioni</a>
+            <a class="list-group-item list-group-item-action {% if request.endpoint == 'settings.documentation' %}active{% endif %}" href="{{ url_for('settings.documentation') }}">Preferenze documentazione</a>
           </div></div>
         </aside>
         <main class="col-12 col-md-9 col-lg-10">

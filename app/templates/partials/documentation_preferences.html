@@ -1,0 +1,10 @@
+<div class="table-responsive"><table class="table table-vcenter mb-0">
+  <thead><tr><th>Categoria</th><th>Modalità</th></tr></thead>
+  <tbody>{% for section, global_mode in preferences.items() %}
+    <tr><td><label for="mode-{{ loop.index }}" class="mb-0">{{ labels[section] }}{% if labels[section] != section %} <span class="text-secondary small">({{ section }})</span>{% endif %}</label>{% if site_preferences %}<div class="form-hint">Globale: {{ global_mode|capitalize }}</div>{% endif %}</td>
+    <td><select class="form-select" id="mode-{{ loop.index }}" name="{{ section }}">
+      {% if site_preferences %}<option value="" {% if section not in overrides %}selected{% endif %}>Eredita — {{ global_mode|capitalize }}</option>{% endif %}
+      {% for mode in modes %}<option value="{{ mode }}" {% if (overrides.get(section) if site_preferences else global_mode) == mode %}selected{% endif %}>{{ mode|capitalize }}</option>{% endfor %}
+    </select></td></tr>
+  {% endfor %}</tbody>
+</table></div>

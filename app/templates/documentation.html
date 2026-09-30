@@ -1,3 +1,9 @@
-{% extends "base.html" %}{% block title %}Documentazione{% endblock %}{% block content %}
-{% with title='Documentazione', subtitle='Struttura futura della documentazione di ' ~ current_client.name %}{% include 'partials/page_header.html' %}{% endwith %}<div class="card"><div class="card-header"><ul class="nav nav-tabs card-header-tabs" data-bs-toggle="tabs" role="tablist">{% for section in sections %}<li class="nav-item" role="presentation"><a href="#doc-{{ loop.index }}" class="nav-link {% if loop.first %}active{% endif %}" data-bs-toggle="tab">{{ section }}</a></li>{% endfor %}</ul></div><div class="card-body"><div class="tab-content">{% for section in sections %}<div class="tab-pane {% if loop.first %}active show{% endif %}" id="doc-{{ loop.index }}"><div class="empty"><p class="empty-title">{{ section }}</p><p class="empty-subtitle text-secondary">Nessun contenuto disponibile in questa sezione.</p><div class="empty-action"><button class="btn btn-primary" disabled>Aggiungi contenuto manuale</button></div></div></div>{% endfor %}</div></div></div>{% endblock %}
-
+{% extends "base.html" %}
+{% block title %}Documentazione{% endblock %}
+{% block content %}
+{% with title='Documentazione', subtitle='Contenuto corrente di ' ~ client.name, action_url=url_for('main.document'), action_label='Apri documento' %}{% include 'partials/page_header.html' %}{% endwith %}
+<div class="alert alert-info"><div>Questi sono i dati che compariranno nel documento, dopo preferenze globali, override della sede ed esclusioni puntuali. <a href="{{ url_for('settings.documentation') }}">Configura le preferenze</a>.</div></div>
+<div class="card"><div class="card-body">{% include 'partials/document_content.html' %}
+{% if not groups %}<div class="empty"><p class="empty-title">Nessun dato di rete documentabile</p><p class="empty-subtitle text-secondary">Verifica le preferenze o importa una configurazione.</p><div class="empty-action"><a class="btn btn-primary" href="{{ url_for('imports.index') }}">Importa configurazioni</a></div></div>{% endif %}
+</div></div>
+{% endblock %}

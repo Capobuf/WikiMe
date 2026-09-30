@@ -3,28 +3,13 @@ from itsdangerous import BadSignature, SignatureExpired, URLSafeTimedSerializer
 
 from ..extensions import db
 from ..importers import MAX_FILE_BYTES, MAX_FILES, ImportParseError, decode_configuration, parse_configuration, safe_filename, split_pasted_configurations
-from ..models import Device, IntegrationSetting, Site, Source, utc_now
+from ..models import Device, Site, Source, utc_now
+from ..documentation import get_global_settings, get_effective_mode, is_documented_item, update_exclusions, visible_columns, format_cell
 from .helpers import current_client_or_404
 
 
 bp = Blueprint("imports", __name__, url_prefix="/imports")
 PREVIEW_MAX_AGE_SECONDS = 60 * 60
-
-SECTION_SETTING = {
-    "Interfaces": "Interfaces",
-    "Bridge ports": "Bridges",
-    "Bridges": "Bridges",
-    "VLAN": "VLAN",
-    "IP Addresses": "IP Addresses",
-    "Routes / Gateway": "Routes / Gateway",
-    "DNS": "DNS",
-    "DHCP": "DHCP",
-    "DHCP leases": "DHCP",
-    "NAT": "NAT",
-    "Firewall": "Firewall",
-    "VPN": "VPN",
-    "VPN users": "VPN",
-}
 
 
 def _preview_serializer():
@@ -41,16 +26,6 @@ def _owned_site_and_source(client):
     if source_id and (not source or source.integration_type != "mikrotik"):
         raise ImportParseError("La fonte selezionata non è una fonte MikroTik valida.")
     return site, source
-
-
-def _apply_global_settings(candidate):
-    setting = db.session.get(IntegrationSetting, "mikrotik")
-    enabled = set((setting.configuration if setting else {}).get("enabled_items", []))
-    sections = candidate["sections"]
-    excluded = [name for name in sections if SECTION_SETTING.get(name, name) not in enabled]
-    candidate["sections"] = {name: items for name, items in sections.items() if name not in excluded}
-    candidate["excluded_sections"] = excluded
-    return candidate
 
 
 @bp.get("")
@@ -97,7 +72,7 @@ def analyze():
     candidates = []
     for filename, text in inputs:
         try:
-            candidates.append(_apply_global_settings(parse_configuration(text, filename).as_dict()))
+            candidates.append(parse_configuration(text, filename).as_dict())
         except ImportParseError as error:
             flash(f"{filename}: {error}", "danger")
     if not candidates:
@@ -109,7 +84,20 @@ def analyze():
         "source_id": source.id if source else None,
         "candidates": candidates,
     })
-    return render_template("imports/preview.html", candidates=candidates, preview_token=preview_token, site=site, source=source)
+    global_settings = get_global_settings()
+    preview_choices = []
+    for candidate in candidates:
+        existing = _existing_device(client.id, candidate["device"])
+        effective_site = site or (existing.site if existing else None)
+        preview_choices.append({
+            name: {
+                "excluded": [not is_documented_item(existing, name, item) for item in items],
+                "mode": get_effective_mode(name, effective_site, global_settings),
+                "columns": visible_columns(name, items),
+            } for name, items in candidate["sections"].items()
+        })
+    return render_template("imports/preview.html", candidates=candidates, preview_token=preview_token,
+                           site=site, source=source, preview_choices=preview_choices, format_cell=format_cell)
 
 
 def _automatic_source(client, site):
@@ -178,12 +166,10 @@ def commit():
             created += 1
         else:
             updated += 1
-        selected_items = set(request.form.getlist(f"items_{index}"))
-        sections = {}
-        for section_index, (name, items) in enumerate(candidate["sections"].items()):
-            included = [item for item_index, item in enumerate(items) if f"{section_index}:{item_index}" in selected_items]
-            if included:
-                sections[name] = included
+        documented_items = set(request.form.getlist(f"items_{index}"))
+        sections = candidate["sections"]
+        documentation = dict((device.data or {}).get("documentation", {}))
+        documentation["excluded_items"] = update_exclusions(device, sections, documented_items)
         device.name = details["name"]
         for field in ("vendor", "platform", "role", "model", "serial_number", "os_version", "management_ip"):
             setattr(device, field, details.get(field))
@@ -191,7 +177,9 @@ def commit():
         device.source_id = source.id
         device.fingerprint = candidate["fingerprint"]
         device.data = {
+            **(device.data or {}),
             "sections": sections,
+            "documentation": documentation,
             "import": {
                 "filename": candidate["filename"],
                 "format": candidate["format"],

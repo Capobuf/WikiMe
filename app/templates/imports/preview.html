@@ -2,9 +2,9 @@
 {% block title %}Anteprima importazione{% endblock %}
 {% block content %}
 {% with title='Anteprima importazione', subtitle=(candidates|length|string) ~ ' configurazioni riconosciute' %}{% include 'partials/page_header.html' %}{% endwith %}
-<div class="steps steps-counter mb-4"><span class="step-item active">Acquisizione</span><span class="step-item active">Analisi</span><span class="step-item active">Anteprima</span><span class="step-item">Importazione</span></div>
+<div class="steps steps-counter mb-4 d-none d-sm-flex"><span class="step-item active">Acquisizione</span><span class="step-item active">Analisi</span><span class="step-item active">Anteprima</span><span class="step-item">Importazione</span></div>
 {% if site or source %}<div class="alert alert-secondary">Destinazione: <strong>{{ site.name if site else 'nessuna sede' }}</strong> · Fonte: <strong>{{ source.name if source else 'automatica' }}</strong></div>{% endif %}
-<div class="alert alert-info py-2">Questa anteprima non è salvata. Se esci senza confermare, verrà semplicemente scartata.</div>
+<div class="alert alert-info py-2">I dati rilevati verranno salvati nello snapshot completo dei dispositivi selezionati. Deseleziona gli elementi che non vuoi mostrare nella documentazione. Le modalità globali e della sede vengono applicate separatamente: una categoria Hidden resta nascosta anche con elementi selezionati. Se esci senza confermare, l’anteprima viene scartata.</div>
 
 <form method="post" action="{{ url_for('imports.commit') }}">
   <input type="hidden" name="preview_token" value="{{ preview_token }}">
@@ -20,50 +20,56 @@
       <div class="card-body">
         <div class="row g-3 mb-4">{% for label, key in [('Produttore','vendor'),('Piattaforma','platform'),('Modello','model'),('Seriale','serial_number'),('Versione','os_version'),('IP management','management_ip')] %}<div class="col-sm-6 col-lg-4"><div class="text-secondary small">{{ label }}</div><div>{{ candidate.device.get(key, '—') }}</div></div>{% endfor %}</div>
         {% for warning in candidate.warnings %}<div class="alert alert-warning py-2">{{ warning }}</div>{% endfor %}
-        {% if candidate.excluded_sections %}<div class="alert alert-secondary py-2">Escluse dalle impostazioni globali: {{ candidate.excluded_sections|join(', ') }}.</div>{% endif %}
+
         <div class="accordion" id="candidate-{{ candidate_index }}">
         {% for section, items in candidate.sections.items() %}
           {% set section_index = loop.index0 %}
+          {% set choice = preview_choices[candidate_index][section] %}
           {% set table_id = 'items-' ~ candidate_index ~ '-' ~ section_index %}
           <div class="accordion-item">
-            <h2 class="accordion-header"><button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#candidate-{{ candidate_index }}-section-{{ section_index }}"><input class="form-check-input me-3" type="checkbox" checked data-section-toggle="{{ table_id }}" onclick="event.stopPropagation()" aria-label="Seleziona tutti gli elementi di {{ section }}"><strong>{{ section }}</strong><span class="badge bg-azure-lt ms-2">{{ items|length }}</span></button></h2>
+            <h2 class="accordion-header d-flex align-items-center"><input class="form-check-input ms-3 flex-shrink-0" type="checkbox" data-section-toggle="{{ table_id }}" aria-label="Documenta gli elementi visibili di {{ section }}"><button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#candidate-{{ candidate_index }}-section-{{ section_index }}"><strong>{{ section }}</strong><span class="badge bg-azure-lt ms-2">{{ items|length }}</span><span class="badge bg-secondary-lt ms-2">{{ choice.mode|capitalize }}</span></button></h2>
             <div id="candidate-{{ candidate_index }}-section-{{ section_index }}" class="accordion-collapse collapse" data-bs-parent="#candidate-{{ candidate_index }}"><div class="accordion-body">
-              <div class="table-responsive"><table class="table table-sm table-vcenter mb-0" id="{{ table_id }}" data-paginated data-page-size="10"><tbody>
+              <div class="table-responsive"><table class="table table-sm table-vcenter mb-0" id="{{ table_id }}" data-paginated data-page-size="10"><thead><tr><th>Documenta</th>{% for key, label in choice.columns %}<th>{{ label }}</th>{% endfor %}<th>Preferenza</th></tr></thead><tbody>
               {% for item in items %}<tr data-page-row>
-                <td class="w-1"><input class="form-check-input" type="checkbox" name="items_{{ candidate_index }}" value="{{ section_index }}:{{ loop.index0 }}" checked aria-label="Importa elemento {{ loop.index }} di {{ section }}"></td>
-                {% for key, value in item.items() %}<td><span class="text-secondary small">{{ 'Stato' if key == 'disabled' else key }}</span><br>{% if key == 'disabled' and value %}<span class="badge bg-red-lt">Disabilitato</span>{% elif value is sameas false %}<span class="badge bg-orange-lt">No</span>{% else %}{{ value|join(', ') if value is sequence and value is not string else value }}{% endif %}</td>{% endfor %}
+                <td class="w-1"><input class="form-check-input" type="checkbox" name="items_{{ candidate_index }}" value="{{ section_index }}:{{ loop.index0 }}" {% if not choice.excluded[loop.index0] %}checked{% endif %} aria-label="Documenta elemento {{ loop.index }} di {{ section }}"></td>
+                {% for key, label in choice.columns %}<td>{{ format_cell(item, key) }}</td>{% endfor %}
+                <td>{% if choice.excluded[loop.index0] %}<span class="badge bg-secondary-lt">Escluso precedentemente</span>{% endif %}</td>
               </tr>{% endfor %}
               </tbody></table></div>
-              <div class="d-flex align-items-center justify-content-between mt-3" data-pagination-for="{{ table_id }}"><span class="text-secondary small" data-page-info></span><div class="btn-group"><button class="btn btn-sm" type="button" data-page-prev>Precedente</button><button class="btn btn-sm" type="button" data-page-next>Successiva</button></div></div>
+              <div class="d-flex flex-wrap gap-2 align-items-center justify-content-between mt-3" data-pagination-for="{{ table_id }}"><span class="text-secondary small" data-page-info></span><div class="btn-group"><button class="btn btn-sm" type="button" data-page-prev>Precedente</button><button class="btn btn-sm" type="button" data-page-next>Successiva</button></div></div>
             </div></div>
           </div>
-        {% else %}<div class="text-secondary">Nessuna sezione abilitata nelle impostazioni MikroTik.</div>{% endfor %}
+        {% else %}<div class="text-secondary">Nessuna sezione rilevata.</div>{% endfor %}
         </div>
       </div>
     </div></div>
   {% endfor %}
   </div>
-  <div class="d-flex justify-content-between mt-4"><a class="btn" href="{{ url_for('imports.index') }}">Scarta anteprima</a><button class="btn btn-primary">Importa dispositivi selezionati</button></div>
+  <div class="d-flex flex-wrap gap-2 justify-content-between mt-4"><a class="btn" href="{{ url_for('imports.index') }}">Scarta anteprima</a><button class="btn btn-primary">Importa dispositivi selezionati</button></div>
 </form>
 <script>
 document.addEventListener('DOMContentLoaded', () => {
-  document.querySelectorAll('[data-section-toggle]').forEach(toggle => {
-    toggle.addEventListener('change', () => {
-      document.querySelectorAll(`#${CSS.escape(toggle.dataset.sectionToggle)} input[type="checkbox"]`).forEach(item => { item.checked = toggle.checked; });
-    });
-  });
-
   document.querySelectorAll('[data-paginated]').forEach(table => {
     const rows = Array.from(table.querySelectorAll('[data-page-row]'));
     const size = Number(table.dataset.pageSize) || 10;
     const pages = Math.max(1, Math.ceil(rows.length / size));
     const controls = document.querySelector(`[data-pagination-for="${table.id}"]`);
     let page = 0;
+    const toggle = document.querySelector(`[data-section-toggle="${table.id}"]`);
+    const visibleInputs = () => rows.filter(row => !row.hidden).map(row => row.querySelector('input[type="checkbox"]'));
+    const syncToggle = () => {
+      const inputs = visibleInputs();
+      toggle.checked = inputs.length > 0 && inputs.every(input => input.checked);
+      toggle.indeterminate = inputs.some(input => input.checked) && !toggle.checked;
+    };
+    toggle.addEventListener('change', () => { visibleInputs().forEach(input => { input.checked = toggle.checked; }); syncToggle(); });
+    table.addEventListener('change', syncToggle);
     const render = () => {
       rows.forEach((row, index) => { row.hidden = Math.floor(index / size) !== page; });
       controls.querySelector('[data-page-info]').textContent = `${rows.length} elementi · pagina ${page + 1} di ${pages}`;
       controls.querySelector('[data-page-prev]').disabled = page === 0;
       controls.querySelector('[data-page-next]').disabled = page === pages - 1;
+      syncToggle();
     };
     controls.querySelector('[data-page-prev]').addEventListener('click', () => { if (page > 0) { page--; render(); } });
     controls.querySelector('[data-page-next]').addEventListener('click', () => { if (page < pages - 1) { page++; render(); } });

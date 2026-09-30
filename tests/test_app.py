@@ -4,6 +4,7 @@ import re
 from sqlalchemy import inspect
 
 from app.extensions import db
+from app.documentation import is_documented_item
 from app.importers import parse_configuration
 from app.models import Client, Device, IntegrationSetting, Site, Source
 from app.routes.imports import _preview_serializer
@@ -66,13 +67,13 @@ def test_create_source_for_current_client(app, client):
 
 
 def test_integration_settings_are_loaded_and_saved(app, client):
-    response = client.get("/settings/integrations/mikrotik")
+    response = client.get("/settings/integrations/unifi")
     assert response.status_code == 200
-    assert "Interfaces" in response.text
-    client.post("/settings/integrations/mikrotik", data={"enabled_items": ["Device", "VLAN"], "excluded_items_policy": "propose"})
+    assert "Networks" in response.text
+    client.post("/settings/integrations/unifi", data={"enabled_items": ["Switch", "VLAN"]})
     with app.app_context():
-        setting = db.session.get(IntegrationSetting, "mikrotik")
-        assert setting.configuration["enabled_items"] == ["Device", "VLAN"]
+        setting = db.session.get(IntegrationSetting, "unifi")
+        assert setting.configuration["enabled_items"] == ["Switch", "VLAN"]
 
 
 def test_edit_and_delete_crud_entities(app, client):
@@ -192,7 +193,8 @@ def test_multiple_configuration_import_creates_and_updates_devices(app, client):
         assert Device.query.filter_by(client_id=client_id).count() == 2
         router = Device.query.filter_by(serial_number="TEST-SERIAL").one()
         assert router.management_ip == "10.0.0.1"
-        assert len(router.sections["DNS"]) == 1
+        assert len(router.sections["DNS"]) == 2
+        assert not is_documented_item(router, "DNS", router.sections["DNS"][1])
         assert "password" not in str(router.data)
         assert Source.query.filter_by(name="Import configurazioni MikroTik").count() == 1
 

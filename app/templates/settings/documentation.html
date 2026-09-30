@@ -1,0 +1,10 @@
+{% extends "base.html" %}
+{% block title %}Preferenze documentazione{% endblock %}
+{% block content %}
+{% with title='Preferenze documentazione', subtitle='Preferenze globali per tutte le sorgenti e tutti i clienti' %}{% include 'partials/page_header.html' %}{% endwith %}
+<div class="alert alert-info">Hidden nasconde la categoria; Summary mostra una sintesi; Detail mostra tutti gli elementi non esclusi. Per le interfacce, Summary mostra solo le porte significative. Le sedi possono sovrascrivere questi valori. Lo snapshot resta completo.</div>
+<form method="post" class="card">
+  {% include 'partials/documentation_preferences.html' %}
+  <div class="card-footer text-end"><button class="btn btn-primary">Salva preferenze</button></div>
+</form>
+{% endblock %}

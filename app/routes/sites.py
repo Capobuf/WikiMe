@@ -2,6 +2,7 @@ from flask import Blueprint, flash, redirect, render_template, request, url_for
 
 from ..extensions import db
 from ..models import Site
+from ..documentation import DEFAULT_MODES, MODES, LABELS, get_global_settings, valid_modes
 from .helpers import current_client_or_404
 
 
@@ -9,6 +10,8 @@ bp = Blueprint("sites", __name__, url_prefix="/sites")
 
 
 def apply_form(site):
+    if "documentation_preferences" in request.form:
+        site.documentation_overrides = valid_modes({section: request.form.get(section) for section in DEFAULT_MODES})
     site.name = request.form["name"].strip()
     for field in ("address", "description", "notes"):
         setattr(site, field, request.form.get(field, "").strip() or None)
@@ -31,7 +34,7 @@ def create():
         db.session.commit()
         flash("Sede creata.", "success")
         return redirect(url_for("sites.index"))
-    return render_template("sites/form.html", site=None)
+    return render_template("sites/form.html", site=None, preferences=get_global_settings(), labels=LABELS, modes=MODES)
 
 
 @bp.route("/<int:site_id>/edit", methods=["GET", "POST"])
@@ -43,7 +46,7 @@ def edit(site_id):
         db.session.commit()
         flash("Sede aggiornata.", "success")
         return redirect(url_for("sites.index"))
-    return render_template("sites/form.html", site=site)
+    return render_template("sites/form.html", site=site, preferences=get_global_settings(), labels=LABELS, modes=MODES)
 
 
 @bp.post("/<int:site_id>/delete")

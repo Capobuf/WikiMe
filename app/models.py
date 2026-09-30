@@ -35,6 +35,7 @@ class Site(db.Model):
     address = db.Column(db.String(300))
     description = db.Column(db.Text)
     notes = db.Column(db.Text)
+    documentation_overrides = db.Column(db.JSON, nullable=False, default=dict)
     sources = db.relationship("Source", backref="site", lazy=True)
     devices = db.relationship("Device", backref="site", lazy=True)
 
@@ -57,6 +58,11 @@ class Source(db.Model):
 
 class IntegrationSetting(db.Model):
     integration_type = db.Column(db.String(30), primary_key=True)
+    configuration = db.Column(db.JSON, nullable=False, default=dict)
+
+
+class DocumentationSetting(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
     configuration = db.Column(db.JSON, nullable=False, default=dict)
 
 
@@ -83,4 +89,3 @@ class Device(db.Model):
     @property
     def sections(self):
         return self.data.get("sections", {})
-

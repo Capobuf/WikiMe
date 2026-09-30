@@ -1,0 +1,10 @@
+{% extends "base.html" %}
+{% block title %}MikroTik{% endblock %}
+{% block content %}
+{% with title='MikroTik', subtitle='Importazione delle configurazioni RouterOS e SwitchOS' %}{% include 'partials/page_header.html' %}{% endwith %}
+<div class="card"><div class="card-body">
+<p>WikiMe salva tutti i dati sicuri rilevati dal parser nello snapshot del dispositivo. Password, secret, community e chiavi vengono rimossi.</p>
+<p>Le esclusioni documentali sono ricordate quando il contenuto normalizzato è identico. Un elemento modificato viene riproposto.</p>
+<a class="btn btn-primary" href="{{ url_for('settings.documentation') }}">Preferenze documentazione</a>
+</div></div>
+{% endblock %}

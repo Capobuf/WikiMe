@@ -15,6 +15,8 @@ INTEGRATIONS = {
 
 
 def default_integration_configuration(integration_type):
+    if integration_type == "mikrotik":
+        return {}
     return {
         "enabled_items": INTEGRATIONS[integration_type]["items"],
         "excluded_items_policy": "remember",

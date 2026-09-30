@@ -73,6 +73,8 @@ def create_app(test_config=None):
 
     with app.app_context():
         db.create_all()
+        if "documentation_overrides" not in {column["name"] for column in inspect(db.engine).get_columns("site")}:
+            db.session.execute(text("ALTER TABLE site ADD COLUMN documentation_overrides JSON NOT NULL DEFAULT '{}'"))
         # Le anteprime di importazione non devono essere persistenti. Rimuove
         # la tabella di staging usata dalle versioni precedenti del POC.
         if inspect(db.engine).has_table("import_batch"):

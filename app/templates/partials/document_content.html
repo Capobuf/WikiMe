@@ -1,0 +1,27 @@
+<h2>Informazioni generali</h2>
+<div class="table-responsive"><table class="table table-vcenter"><tbody>
+<tr><th>Ragione sociale</th><td>{{ client.company_name }}</td></tr>
+{% for label, value in [('Indirizzo', client.address), ('Città', client.city), ('Email', client.email), ('Telefono', client.phone), ('Sito web', client.website)] %}
+{% if value %}<tr><th>{{ label }}</th><td>{{ value }}</td></tr>{% endif %}
+{% endfor %}
+</tbody></table></div>
+{% if sites %}<h2 class="mt-4">Sedi</h2>
+<div class="table-responsive"><table class="table table-vcenter"><thead><tr><th>Sede</th><th>Indirizzo</th><th>Descrizione</th></tr></thead><tbody>
+{% for site in sites %}<tr><td>{{ site.name }}</td><td>{{ site.address or '—' }}</td><td>{{ site.description or '—' }}</td></tr>{% endfor %}
+</tbody></table></div>{% endif %}
+{% if groups %}<h2 class="mt-4">Rete</h2>
+{% for group in groups %}
+<section class="mt-4"><h3>{{ group.site.name if group.site else 'Apparati senza sede' }}</h3>
+{% for block in group.blocks %}
+<section class="mb-4" data-document-section="{{ block.section }}">
+<h4>{{ block.label }} <span class="badge bg-secondary-lt d-print-none">{{ block.mode|capitalize }}</span></h4>
+<div class="table-responsive"><table class="table table-sm table-vcenter"><thead><tr>
+{% if block.section != 'Device' %}<th>Apparato</th>{% endif %}
+{% for key, label in block.columns %}<th>{{ label }}</th>{% endfor %}
+</tr></thead><tbody>{% for row in block.rows %}<tr>
+{% if block.section != 'Device' %}<td>{{ row.device_name }}</td>{% endif %}
+{% for key, label in block.columns %}<td>{{ format_cell(row.item, key) }}</td>{% endfor %}
+</tr>{% endfor %}</tbody></table></div>
+</section>{% endfor %}</section>
+{% endfor %}
+{% endif %}
